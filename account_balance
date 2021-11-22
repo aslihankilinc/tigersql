@@ -1,0 +1,26 @@
+--values are random
+declare @yourCompanyNo int=001
+declare @yourIp varchar(20)='127.0.0.1'
+declare @yourDataName varchar(20)='yourDataName'
+declare @yourbranch varchar(20)='1,36,5,8,7,3'
+
+declare @query_body varchar(max)=
+'
+declare @tblAccount table(CompanyNo varchar(5),AccountCode varchar(50),Account varchar(500),AccountantCode varchar(50),CurrentBalance decimal(18,2))
+insert into @tblAccount
+SELECT * FROM (
+SELECT ''XXX'' CompanyNo,AccountCode, Account, AccountantCode,
+isNULL((SELECT     CAST(SUM(CASE C.SIGN WHEN 0 THEN C.AMOUNT ELSE C.AMOUNT * - 1 END) AS numeric(18,2))
+FROM  [SSS].[DDD].dbo.LG_XXX_01_CLFLINE C WHERE C.CANCELLED = 0 AND
+C.CLIENTREF = A.LOGICALREF
+AND C.BRANCH IN(III)
+),0) AS CurrentBalance
+FROM (SELECT LOGICALREF, CODE AS AccountCode, DEFINITION_ AS Account,
+isnull((SELECT MK.CODE FROM [SSS].[DDD].dbo.LG_XXX_EMUHACC MK WHERE MK.LOGICALREF =
+(SELECT B.ACCOUNTREF FROM [SSS].[DDD].dbo.LG_XXX_CRDACREF B
+WHERE (B.TRCODE = 5) AND CK.LOGICALREF = B.CARDREF)),'''') AS AccountantCode
+FROM [SSS].[DDD].dbo.LG_XXX_CLCARD CK) A ) AS Balance
+Select * From @tblAccount'
+set @query_body=REPLACE(REPLACE(REPLACE(REPLACE(@query_body,'XXX',Convert(varchar(10),@yourCompanyNo)),'DDD',@yourDataName),'SSS',@yourIp),'III',@yourbranch )
+
+exec(@query_body)
