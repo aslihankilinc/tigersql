@@ -1,0 +1,368 @@
+Skip to content
+Search or jump to…
+Pull requests
+Issues
+Marketplace
+Explore
+ 
+@aslihankilinc 
+aslihankilinc
+/
+TigerBankaEkstreAktarim
+Private
+Code
+Issues
+Pull requests
+Actions
+Projects
+Security
+Insights
+Settings
+TigerBankaEkstreAktarim/Form1.cs /
+@aslihankilinc
+aslihankilinc No commit message
+Latest commit afd0d2c on Apr 4
+ History
+ 1 contributor
+422 lines (384 sloc)  28.7 KB
+   
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+
+namespace TigerBankaEkstreAktarim
+{
+    public partial class Form1 : Form
+    {
+        public static UnityObjects.UnityApplication unity;
+        public static int? FirmaNo { get; set; }
+        public static string UnityUser = "AKTARIM";
+        public static string UnityPass = "AKTARIM";
+        public Form1()
+        {
+            InitializeComponent();
+        }
+
+        private void btnTransfer_Click(object sender, EventArgs e)
+        {
+            closeCon();
+
+            DataModel dm = new DataModel();
+            
+            var list = dm.AktarimFinans.Where(w => w.No == 00).ToList();
+
+            string bankaHesapKod = "SELECT CODE from  LG_{0}_BANKACC  WITH(NOLOCK) WHERE LOGICALREF={1}";
+            string cariHesapKod = "SELECT CODE,DEFINITION_ from  LG_{0}_CLCARD  WITH(NOLOCK) WHERE LOGICALREF={1}";
+            string hizmetKod = "SELECT CODE from  LG_{0}_SRVCARD  WITH(NOLOCK) WHERE LOGICALREF={1}";
+            var con = dm.Company.Where(w => w.FirmaNo == 12).FirstOrDefault();
+            SqlConnect.GetSetConectionString(con.LogoDataBase, con.Ip);
+            unity = new UnityObjects.UnityApplication();
+            var connect = unity.Login(UnityUser, UnityPass, Convert.ToInt32(710));
+
+            string[] islemHizmet = { "16", "17" };
+            string[] islemHavaleEFT = { "3", "4" };
+            string[] islemCekSenet = { "9", "10" };
+            foreach (var item in list)
+            {
+                UnityObjects.Data bankvo = unity.NewDataObject(UnityObjects.DataObjectType.doBankVoucher);
+                if (!islemCekSenet.Contains(item.IslemTip.ToString()))
+                {
+                    #region Head
+                    bankvo.New();
+                    bankvo.DataFields.FieldByName("DATE").Value = item.IslemTarih;
+                    bankvo.DataFields.FieldByName("NUMBER").Value = "~";
+                    bankvo.DataFields.FieldByName("AUXIL_CODE").Value = item.OzelKod;
+                    bankvo.DataFields.FieldByName("DIVISION").Value = item.IsyeriNo;
+                    bankvo.DataFields.FieldByName("DEPARMENT").Value = 0;
+                    bankvo.DataFields.FieldByName("TYPE").Value = item.IslemTip;
+                    if (item.IslemTip != 2)
+                    {
+                        bankvo.DataFields.FieldByName("SIGN").Value = item.BorcAlacak;
+                        if (item.BorcAlacak == 1)
+                        {
+                            bankvo.DataFields.FieldByName("TOTAL_CREDIT").Value = Convert.ToDouble(item.ToplamTutar);
+                            bankvo.DataFields.FieldByName("RC_TOTAL_CREDIT").Value = Convert.ToDouble(item.ToplamTutar);
+                        }
+                        else
+                        {
+                            bankvo.DataFields.FieldByName("TOTAL_DEBIT").Value = Convert.ToDouble(item.ToplamTutar);
+                            bankvo.DataFields.FieldByName("RC_TOTAL_DEBIT").Value = Convert.ToDouble(item.ToplamTutar);
+
+                        }
+
+                        bankvo.DataFields.FieldByName("BNACCCODE").Value = Convert.ToString(SqlConnect.GetDataTable(string.Format(bankaHesapKod, item.FirmaNo.ToString(), item.Aktarim_EntFinansDetay.First().BankaHesapRef.ToString())).Rows[0]["CODE"]);
+                    }
+                    else
+                    {
+                        bankvo.DataFields.FieldByName("RC_TOTAL_DEBIT").Value = Convert.ToDouble(item.ToplamDovizTutar);
+                        bankvo.DataFields.FieldByName("RC_TOTAL_CREDIT").Value = Convert.ToDouble(item.ToplamDovizTutar);
+                        bankvo.DataFields.FieldByName("TOTAL_DEBIT").Value = Convert.ToDouble(item.ToplamTutar);
+                        bankvo.DataFields.FieldByName("TOTAL_CREDIT").Value = Convert.ToDouble(item.ToplamTutar);
+                    }
+                    bankvo.DataFields.FieldByName("NOTES1").Value = "TEST AMAÇLIDIR" + item.Aciklama1;
+                    bankvo.DataFields.FieldByName("NOTES2").Value = "TEST AMAÇLIDIR" + item.Aciklama2;
+                    bankvo.DataFields.FieldByName("CURRSEL_TOTALS").Value = dm.ParaBirimi.Where(w => w.No == item.ParaBirimiNo).First().TipiNo;
+                    bankvo.DataFields.FieldByName("CURRSEL_DETAILS").Value = 0;
+                    #endregion
+
+                    UnityObjects.Lines transactions_lines = bankvo.DataFields.FieldByName("TRANSACTIONS").Lines;
+                    foreach (var itemD in item.AktarimDetay.ToList())
+                    {
+                        #region Detail
+                        transactions_lines.AppendLine();
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("TYPE").Value = 1;
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("TRANNO").Value = "~";
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("BANKACC_CODE").Value = Convert.ToString(SqlConnect.GetDataTable(string.Format(bankaHesapKod, item.FirmaNo.ToString(), itemD.BankaHesapRef.ToString())).Rows[0]["CODE"]);
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("DATE").Value = item.IslemTarih.Value.Date;
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("DUE_DATE").Value = item.IslemTarih.Value.Date;
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("TRCODE").Value = item.IslemTip;
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("MODULENR").Value = item.ModuleNo;
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("AUXIL_CODE").Value = item.OzelKod;
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("DESCRIPTION").Value = "TEST AMAÇLIDIR" + itemD.Aciklama;
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("AMOUNT").Value = Convert.ToDouble(itemD.ToplamTutar);
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("TC_AMOUNT").Value = Convert.ToDouble(itemD.ToplamTutar);
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("RC_XRATE").Value = Convert.ToDouble(itemD.DovizKur);
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("RC_AMOUNT").Value = Convert.ToDouble(itemD.DovizTutar);
+                        if (itemD.IslemTip == 2)//Virman
+                            transactions_lines[transactions_lines.Count - 1].FieldByName("BANK_PROC_TYPE").Value = itemD.OdemeTuruNo == null ? 1 : itemD.OdemeTuruNo; //Nakit
+                        else
+                            transactions_lines[transactions_lines.Count - 1].FieldByName("BANK_PROC_TYPE").Value = itemD.OdemeTuruNo == null ? 2 : itemD.OdemeTuruNo;
+                        if (itemD.BorcAlacak == true)
+                        {
+                            transactions_lines[transactions_lines.Count - 1].FieldByName("CREDIT").Value = Convert.ToDouble(itemD.ToplamTutar);
+                            //transactions_lines[transactions_lines.Count - 1].FieldByName("AFFECT_RISK").Value = 0;
+                            transactions_lines[transactions_lines.Count - 1].FieldByName("SIGN").Value = 1;
+                        }
+                        else
+                        {
+                            transactions_lines[transactions_lines.Count - 1].FieldByName("DEBIT").Value = Convert.ToDouble(itemD.ToplamTutar);
+                            //transactions_lines[transactions_lines.Count - 1].FieldByName("AFFECT_RISK").Value = 1;
+                        }
+                        if (islemHavaleEFT.Contains(item.IslemTip.ToString()))
+                        {
+                            transactions_lines[transactions_lines.Count - 1].FieldByName("ARP_CODE").Value = Convert.ToString(SqlConnect.GetDataTable(string.Format(cariHesapKod, item.FirmaNo.ToString(), itemD.CariRef.ToString())).Rows[0]["CODE"]);
+                        }
+
+                        #endregion
+                    }
+
+
+                    if (islemHizmet.Contains(item.IslemTip.ToString()))
+                    {
+                        #region InvoiceHead
+                        UnityObjects.Lines attachment_invoice_lines = bankvo.DataFields.FieldByName("ATTACHMENT_INVOICE").Lines;
+                        attachment_invoice_lines.AppendLine();
+                        attachment_invoice_lines[attachment_invoice_lines.Count - 1].FieldByName("TYPE").Value = item.BorcAlacak == 1 ? 4 : 8;
+                        attachment_invoice_lines[attachment_invoice_lines.Count - 1].FieldByName("NUMBER").Value = "~";
+                        attachment_invoice_lines[attachment_invoice_lines.Count - 1].FieldByName("DATE").Value = item.IslemTarih.Value.Date;
+                        attachment_invoice_lines[attachment_invoice_lines.Count - 1].FieldByName("DOC_DATE").Value = item.IslemTarih.Value.Date;
+                        attachment_invoice_lines[attachment_invoice_lines.Count - 1].FieldByName("AUXIL_CODE").Value = item.OzelKod;
+                        attachment_invoice_lines[attachment_invoice_lines.Count - 1].FieldByName("VAT_RATE").Value = 18;
+                        attachment_invoice_lines[attachment_invoice_lines.Count - 1].FieldByName("TOTAL_DISCOUNTED").Value = Convert.ToDouble(item.ToplamTutar);
+                        attachment_invoice_lines[attachment_invoice_lines.Count - 1].FieldByName("TOTAL_GROSS").Value = Convert.ToDouble(item.ToplamTutar);
+                        attachment_invoice_lines[attachment_invoice_lines.Count - 1].FieldByName("TOTAL_NET").Value = Convert.ToDouble(item.ToplamTutar);
+                        attachment_invoice_lines[attachment_invoice_lines.Count - 1].FieldByName("NOTES1").Value = "TEST AMAÇLIDIR" + item.Aciklama1;
+                        attachment_invoice_lines[attachment_invoice_lines.Count - 1].FieldByName("RC_XRATE").Value = Convert.ToDouble(item.DovizKur);
+                        attachment_invoice_lines[attachment_invoice_lines.Count - 1].FieldByName("RC_NET").Value = Convert.ToDouble(item.ToplamDovizTutar);
+                        attachment_invoice_lines[attachment_invoice_lines.Count - 1].FieldByName("DATE_CREATED").Value = item.IslemTarih.Value.Date;
+                        attachment_invoice_lines[attachment_invoice_lines.Count - 1].FieldByName("CURRSEL_TOTALS").Value = 1;
+                        //attachment_invoice_lines[attachment_invoice_lines.Count - 1].FieldByName("DATA_REFERENCE").Value = 0;
+                        attachment_invoice_lines[attachment_invoice_lines.Count - 1].FieldByName("FROMBANK").Value = 1;
+                        //attachment_invoice_lines[attachment_invoice_lines.Count - 1].FieldByName("AFFECT_RISK").Value = item.BorcAlacak == 1 ? 0:1;
+                        attachment_invoice_lines[attachment_invoice_lines.Count - 1].FieldByName("TOTAL_SERVICES").Value = Convert.ToDouble(item.ToplamTutar);
+                        #endregion
+
+                        UnityObjects.Lines transactions0 = attachment_invoice_lines[attachment_invoice_lines.Count - 1].FieldByName("TRANSACTIONS").Lines;
+
+                        foreach (var itemD in item.AktarimDetay.ToList())
+                        {
+                            #region InvoiceDetail
+                            transactions0.AppendLine();
+                            transactions0[transactions0.Count - 1].FieldByName("TYPE").Value = 4;
+                            transactions0[transactions0.Count - 1].FieldByName("MASTER_CODE").Value = Convert.ToString(SqlConnect.GetDataTable(string.Format(hizmetKod, item.FirmaNo.ToString(), item.Aktarim_EntFinansDetay.First().HizmetRef.ToString())).Rows[0]["CODE"]);
+                            transactions0[transactions0.Count - 1].FieldByName("GL_CODE1").Value = Convert.ToString(SqlConnect.GetDataTable(string.Format(hizmetKod, item.FirmaNo.ToString(), item.Aktarim_EntFinansDetay.First().HizmetRef.ToString())).Rows[0]["CODE"]);
+                            transactions0[transactions0.Count - 1].FieldByName("QUANTITY").Value = itemD.Miktar;
+                            transactions0[transactions0.Count - 1].FieldByName("PRICE").Value = Convert.ToDouble(itemD.ToplamTutar);
+                            transactions0[transactions0.Count - 1].FieldByName("TOTAL").Value = Convert.ToDouble(itemD.ToplamTutar);
+                            transactions0[transactions0.Count - 1].FieldByName("RC_XRATE").Value = Convert.ToDouble(itemD.DovizKur);
+                            //transactions0[transactions0.Count - 1].FieldByName("RC_NET").Value = Convert.ToDouble(itemD.DovizTutar);
+                            transactions0[transactions0.Count - 1].FieldByName("UNIT_CODE").Value = itemD.Birim.ToUpper();
+                            transactions0[transactions0.Count - 1].FieldByName("UNIT_CONV1").Value = itemD.Miktar;
+                            transactions0[transactions0.Count - 1].FieldByName("UNIT_CONV2").Value = itemD.Miktar;
+                            transactions0[transactions0.Count - 1].FieldByName("VAT_BASE").Value = Convert.ToDouble(itemD.ToplamTutar);
+                            transactions0[transactions0.Count - 1].FieldByName("BILLED").Value = 1;
+                            transactions0[transactions0.Count - 1].FieldByName("TOTAL_NET").Value = Convert.ToDouble(itemD.ToplamTutar);
+                            transactions0[transactions0.Count - 1].FieldByName("MASTER_DEF").Value = "TEST AMAÇLIDIR" + itemD.Aciklama;
+                            #endregion
+                        }
+
+                    }
+                    bankvo.FillAccCodes();
+                    if (bankvo.Post() == true)
+                    {
+                        item.AktarildiMi = true;
+                        item.AktarimDeneme = Convert.ToInt16((item.AktarimDeneme == null ? 0 : item.AktarimDeneme) + 1);
+                        item.AktarimMesaji = "";
+                        item.AktarimTarih = DateTime.Now;
+                        item.TigerBnfLogicalRef = Convert.ToInt32(bankvo.DataFields.FieldByName("INTERNAL_REFERENCE").Value);
+                        item.TigerBnfFicheNo = (bankvo.DataFields.FieldByName("NUMBER").Value).ToString();
+                        item.TigerBnfEttn = (bankvo.DataFields.FieldByName("GUID").Value).ToString();
+                        dm.SaveChanges();
+                        MessageBox.Show("POST OK !");
+
+                    }
+                    else
+                    {
+                        if (bankvo.ErrorCode != 0)
+                        {
+                            MessageBox.Show("DBError(" + bankvo.ErrorCode.ToString() + ")-" + bankvo.ErrorDesc + bankvo.DBErrorDesc);
+                        }
+                        else if (bankvo.ValidateErrors.Count > 0)
+                        {
+                            string result = "XML ErrorList:";
+                            for (int i = 0; i < bankvo.ValidateErrors.Count; i++)
+                            {
+                                result += "(" + bankvo.ValidateErrors[i].ID.ToString() + ") - " + bankvo.ValidateErrors[i].Error;
+                            }
+                            MessageBox.Show(result);
+                        }
+                    }
+                    dm.SaveChanges();
+                    bankvo = null;
+                    closeCon();
+                }
+                else
+                {
+                    UnityObjects.Data rolls = unity.NewDataObject(UnityObjects.DataObjectType.doCQPnRoll);
+                    rolls.New();
+                    rolls.DataFields.FieldByName("TYPE").Value = item.IslemTip;
+                    rolls.DataFields.FieldByName("DATE").Value = item.IslemTarih;
+                    rolls.DataFields.FieldByName("NUMBER").Value = "~";
+                    rolls.DataFields.FieldByName("AUXIL_CODE").Value = item.OzelKod;
+                    rolls.DataFields.FieldByName("DIVISION").Value = item.IsyeriNo;
+                    rolls.DataFields.FieldByName("TC_XRATE").Value = Convert.ToDouble(item.DovizKur);//dovizKur
+                    rolls.DataFields.FieldByName("TC_TOTAL").Value = Convert.ToDouble(item.ToplamTutar);//tlYutar
+                    rolls.DataFields.FieldByName("RC_XRATE").Value = Convert.ToDouble(item.DovizKur);//dovizKur
+                    rolls.DataFields.FieldByName("RC_TOTAL").Value = Convert.ToDouble(item.ToplamDovizTutar);
+                    rolls.DataFields.FieldByName("CURR_TRANS").Value = dm.ParaBirimi.Where(w => w.No == item.ParaBirimiNo).First().TipiNo;
+                    rolls.DataFields.FieldByName("NOTES1").Value = "TEST AMAÇLIDIR" + (item.EntFinans_BankaHareket.Aciklama != null ? item.EntFinans_BankaHareket.Aciklama : "");
+                    UnityObjects.Lines transactions_lines = rolls.DataFields.FieldByName("TRANSACTIONS").Lines;
+                    foreach (var itemD in item.Aktarim_EntFinansDetay.ToList())
+                    {
+                        #region Detail
+                        transactions_lines.AppendLine();
+
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("TYPE").Value = itemD.IslemTip;
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("DATE").Value = item.IslemTarih;
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("NUMBER").Value = "~";
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("SERIAL_NUMBER").Value = itemD.SeriNo;
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("BANK_TITLE").Value = item.EntFinans_BankaHareket.EntFinans_BankaSistemHesap.EntFinans_BankaSistem.EntFinans_Banka.Ad;
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("ACCOUNT_NO").Value = item.EntFinans_BankaHareket.EntFinans_BankaSistemHesap.HesapNo;
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("DIVISION_NO").Value = item.IsyeriNo;
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("AUXIL_CODE").Value = item.OzelKod;
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("AUTH_CODE").Value = "";
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("CITY").Value = itemD.Sehir;
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("OWING").Value = itemD.Aciklama2;
+                        //transactions_lines[transactions_lines.Count - 1].FieldByName("GUARANTOR").Value = ak.Kefil;
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("DIVISION").Value = item.IsyeriNo;
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("DUE_DATE").Value = item.IslemTarih;
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("DATE").Value = item.IslemTarih;
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("AMOUNT").Value = Convert.ToDouble(itemD.ToplamTutar);
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("RC_XRATE").Value = Convert.ToDouble(itemD.DovizKur);
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("RC_AMOUNT").Value = Convert.ToDouble(itemD.DovizTutar);
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("TC_XRATE").Value = Convert.ToDouble(itemD.DovizKur);
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("TC_AMOUNT").Value = Convert.ToDouble(itemD.ToplamTutar);
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("SERIAL_NR").Value = itemD.SeriNo;
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("AFFECT_RISK").Value = 1;
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("CURR_TRANS").Value = dm.ParaBirimi.Where(w => w.No == item.ParaBirimiNo).First().TipiNo;
+                        // transactions_lines[transactions_lines.Count - 1].FieldByName("TAX_NR").Value = ak.VTcNo;
+                        //transactions_lines[transactions_lines.Count - 1].FieldByName("CS_IBAN").Value = ak.Iban;
+                        transactions_lines[transactions_lines.Count - 1].FieldByName("CURRSEL_TRANS").Value = 2;
+
+
+                        #endregion
+                    }
+
+
+                    rolls.FillAccCodes();
+                    if (rolls.Post() == true)
+                    {
+                        item.AktarildiMi = true;
+                        item.AktarimDeneme = Convert.ToInt16((item.AktarimDeneme == null ? 0 : item.AktarimDeneme) + 1);
+                        item.AktarimMesaji = "";
+                        item.AktarimTarih = DateTime.Now;
+                        item.TigerBnfLogicalRef = Convert.ToInt32(bankvo.DataFields.FieldByName("INTERNAL_REFERENCE").Value);
+                        item.TigerBnfFicheNo = (bankvo.DataFields.FieldByName("NUMBER").Value).ToString();
+                        item.TigerBnfEttn = (bankvo.DataFields.FieldByName("GUID").Value).ToString();
+                        dm.SaveChanges();
+                        MessageBox.Show("POST OK !");
+
+                    }
+                    else
+                    {
+                        if (rolls.ErrorCode != 0)
+                        {
+                            MessageBox.Show("DBError(" + rolls.ErrorCode.ToString() + ")-" + rolls.ErrorDesc + rolls.DBErrorDesc);
+                        }
+                        else if (rolls.ValidateErrors.Count > 0)
+                        {
+                            string result = "XML ErrorList:";
+                            for (int i = 0; i < rolls.ValidateErrors.Count; i++)
+                            {
+                                result += "(" + rolls.ValidateErrors[i].ID.ToString() + ") - " + rolls.ValidateErrors[i].Error;
+                            }
+                            MessageBox.Show(result);
+                        }
+                    }
+                    dm.SaveChanges();
+                    rolls = null;
+                    closeCon();
+
+
+                }
+
+            }
+
+
+
+        }
+
+
+
+        public static void closeCon()
+        {
+
+            try
+            {
+                int pid = 0;
+                if (unity != null)
+                {
+                    pid = unity.GetPID();
+                    unity.UserLogout();
+                    if (unity.Connected)
+                        unity.Disconnect();
+                }
+                foreach (System.Diagnostics.Process myProc in System.Diagnostics.Process.GetProcesses())
+                {
+                    if (myProc.Id == pid)
+                    {
+                        myProc.Kill();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+
+            }
+            GC.Collect();
+            unity = null;
+
+        }
+    }
+}
