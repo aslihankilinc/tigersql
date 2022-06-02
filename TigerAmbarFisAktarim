@@ -1,0 +1,142 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+
+namespace TigerAktarim
+{
+    public partial class Form1 : Form
+    {
+        public static UnityObjects.UnityApplication unity;
+        public static int? FirmaNo { get; set; }
+        public static string UnityUser = "AKTARIM";
+        public static string UnityPass = "AKTARIM";
+        public Form1()
+        {
+            InitializeComponent();
+        }
+
+        private void btnTransfer_Click(object sender, EventArgs e)
+        {
+            closeCon();
+            DataModel dm = new DataModel();
+            var yuk = dm.Aktarim_MalzemeFis.Where(q => q.AktarildiMi!=true).ToList();   
+            unity = new UnityObjects.UnityApplication();
+            var connect = unity.Login(UnityUser, UnityPass, Convert.ToInt32(yuk.FirstOrDefault().FirmaNo));
+            object yt= 0, ot = 0;
+            foreach (var item in yuk)
+            {
+                yt = 0; ot = 0;
+                var soforAd = item.Enka_Otomasyon_TransferFisi.SoforBilgi.Split(' ');
+                UnityObjects.Data items = unity.NewDataObject(UnityObjects.DataObjectType.doMaterialSlip);
+                items.New();
+                items.DataFields.FieldByName("GROUP").Value = 3;
+                items.DataFields.FieldByName("TYPE").Value = 25;
+                items.DataFields.FieldByName("NUMBER").Value = "~";
+                items.DataFields.FieldByName("DATE").Value = item.Tarih;
+                items.DataFields.FieldByName("ARP_CODE").Value = item.CariKod;//Enka CARIKOD
+                items.DataFields.FieldByName("SHIPPING_AGENT").Value = item.TasiyiciKod;//Tasiyici Kodu Enka
+                items.DataFields.FieldByName("SOURCE_DIVISION_NR").Value =item.KaynakIsyeriNo;
+                items.DataFields.FieldByName("SOURCE_WH").Value = item.KaynakAmbarNo;//kaynak
+                items.DataFields.FieldByName("SOURCE_COST_GRP").Value =item.KaynakAmbarNo;
+                items.DataFields.FieldByName("DEST_DIVISION_NR").Value = item.HedefIsyeriNo;
+                items.DataFields.FieldByName("DEST_WH").Value = item.HedefAmbarNo;//hedef
+                items.DataFields.FieldByName("DEST_COST_GRP").Value = item.HedefAmbarNo;
+                items.DataFields.FieldByName("FOOTNOTE1").Value = item.Aciklama != null ? item.Aciklama : "";
+                items.DataFields.FieldByName("CURRSEL_TOTALS").Value = 1;
+                items.DataFields.FieldByName("DOC_DATE").Value = item.YuklemeTarih;
+                unity.PackTime(item.YuklemeTarih.Value.Hour, item.YuklemeTarih.Value.Minute, item.YuklemeTarih.Value.Second, ref ot);
+                items.DataFields.FieldByName("DOC_TIME").Value = ot;
+                items.DataFields.FieldByName("SHIP_DATE").Value = item.OnayTarih;               
+                unity.PackTime(item.OnayTarih.Value.Hour, item.OnayTarih.Value.Minute, item.OnayTarih.Value.Second, ref yt);
+                items.DataFields.FieldByName("SHIP_TIME").Value = yt;
+                items.DataFields.FieldByName("EDESPATCH").Value = Convert.ToInt16(item.EIrsaliyeMi);//e-irsaliye
+                items.DataFields.FieldByName("EINVOICE_DRIVERNAME1").Value = String.Join(" ", soforAd.Where(w => w != soforAd.Last()).ToArray());
+                items.DataFields.FieldByName("EINVOICE_DRIVERSURNAME1").Value = soforAd.LastOrDefault();
+                items.DataFields.FieldByName("EINVOICE_PLATENUM1").Value = item.Enka_Otomasyon_TransferFisi.Plaka;
+                UnityObjects.Lines transactions_lines = items.DataFields.FieldByName("TRANSACTIONS").Lines;
+                foreach (var itemD in item.Aktarim_MalzemeFisDetay.ToList())
+                {
+                    transactions_lines.AppendLine();
+                    transactions_lines[transactions_lines.Count - 1].FieldByName("ITEM_CODE").Value = itemD.StokKod;
+                    transactions_lines[transactions_lines.Count - 1].FieldByName("SOURCEINDEX").Value = item.KaynakIsyeriNo;
+                    transactions_lines[transactions_lines.Count - 1].FieldByName("SOURCECOSTGRP").Value = item.KaynakAmbarNo;
+                    transactions_lines[transactions_lines.Count - 1].FieldByName("DESTINDEX").Value = item.HedefIsyeriNo;
+                    transactions_lines[transactions_lines.Count - 1].FieldByName("DESTCOSTGRP").Value = item.HedefAmbarNo;
+                    transactions_lines[transactions_lines.Count - 1].FieldByName("QUANTITY").Value = Convert.ToDouble(itemD.Miktar);
+                    transactions_lines[transactions_lines.Count - 1].FieldByName("UNIT_CODE").Value = itemD.Birim.ToUpper();
+                    transactions_lines[transactions_lines.Count - 1].FieldByName("UNIT_CONV1").Value = 1;
+                    transactions_lines[transactions_lines.Count - 1].FieldByName("UNIT_CONV2").Value = 1;
+                    transactions_lines[transactions_lines.Count - 1].FieldByName("EDT_CURR").Value = 1;
+                }
+                items.FillAccCodes();
+
+
+                if (items.Post() == true)
+                {
+                    MessageBox.Show("POST OK !");
+                    item.TigerLogicalRef = Convert.ToInt32(items.DataFields.FieldByName("INTERNAL_REFERENCE").Value);
+                    item.TigerFicheNo = (items.DataFields.FieldByName("NUMBER").Value).ToString();
+                    item.TigerEttnNo = (items.DataFields.FieldByName("GUID").Value).ToString();
+                }
+                else
+                {
+                    if (items.ErrorCode != 0)
+                    {
+                        MessageBox.Show("DBError(" + items.ErrorCode.ToString() + ")-" + items.ErrorDesc + items.DBErrorDesc);
+                    }
+                    else if (items.ValidateErrors.Count > 0)
+                    {
+                        string result = "XML ErrorList:";
+                        for (int i = 0; i < items.ValidateErrors.Count; i++)
+                        {
+                            result += "(" + items.ValidateErrors[i].ID.ToString() + ") - " + items.ValidateErrors[i].Error;
+                        }
+                        MessageBox.Show(result);
+                    }
+                }
+
+
+            }
+
+
+            closeCon();
+
+        }
+
+        public static void closeCon()
+        {
+
+            try
+            {
+                int pid = 0;
+                if (unity != null)
+                {
+                    pid = unity.GetPID();
+                    unity.UserLogout();
+                    if (unity.Connected)
+                        unity.Disconnect();
+                }
+                foreach (System.Diagnostics.Process myProc in System.Diagnostics.Process.GetProcesses())
+                {
+                    if (myProc.Id == pid)
+                    {
+                        myProc.Kill();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+
+            }
+            GC.Collect();
+            unity = null;
+
+        }
+    }
+}
