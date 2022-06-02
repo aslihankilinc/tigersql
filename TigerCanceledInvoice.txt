@@ -1,0 +1,31 @@
+declare @fisNo varchar(50)
+
+set @fisNo='AXXXXXXXXXXXXX'
+
+declare @invoiceNo bigint
+declare @custemorNo bigint
+
+
+select @custemorNo=CLIENTREF,@invoiceNo=LOGICALREF from LG_XXX_01_INVOICE WHERE FICHENO=@fisNo
+print convert(varchar,@custemorNo)+'--'+convert(varchar,@invoiceNo)
+return;
+--update LG_XXX_01_INVOICE set CANCELLED=1 where FICHENO=@fisNo
+
+select * from LG_XXX_CLCARD  where DEFINITION_ LIKE '%MOBEL%' AND LOGICALREF=@custemorNo
+
+select CANCELLED,* from LG_XXX_01_CLFLINE where CLIENTREF=@custemorNo and SOURCEFREF=@invoiceNo
+--update LG_XXX_01_CLFLINE set CANCELLED=1 where CLIENTREF=@custemorNo and SOURCEFREF=@invoiceNo
+
+
+select CANCELLED,* from LG_XXX_01_STLINE where INVOICEREF=@invoiceNo and CLIENTREF=@custemorNo
+--update LG_XXX_01_STLINE set CANCELLED=1 where INVOICEREF=@invoiceNo and CLIENTREF=@custemorNo
+
+select CANCELLED,* from LG_XXX_01_STFICHE where INVOICEREF=@invoiceNo and CLIENTREF=@custemorNo
+ 
+
+ select i.CANCELLED,i.* from
+ LG_XXX_01_INVOICE i 
+ left join LG_XXX_CLCARD c on c.LOGICALREF=i.CLIENTREF
+ left join LG_XXX_01_CLFLINE ch on ch.SOURCEFREF=i.LOGICALREF and ch.CLIENTREF=c.LOGICALREF
+ left join LG_XXX_01_STLINE st on   st.INVOICEREF=i.LOGICALREF  and st.CLIENTREF=c.LOGICALREF
+ where i.LOGICALREF=(select LOGICALREF from LG_XXX_01_INVOICE WHERE FICHENO=@fisNo)
