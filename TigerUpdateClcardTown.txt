@@ -1,0 +1,68 @@
+
+declare @p table (Il varchar(50),Ilce varchar(50),Kod varchar(50))
+
+
+insert into @p
+select Il,Ilce,Kod from PostaKodu 
+
+
+
+declare @ts table (LRef int,City varchar(50),Town varchar(150),Postcode varchar(50))
+insert into @ts
+select c.LOGICALREF,c.CITY,c.TOWN,c.POSTCODE from LG_XXX_CLCARD c 
+where isnull(c.POSTCODE,'')='' and ISNULL(c.CITY,'')<>'' 
+
+
+update @ts set City =UPPER(City)
+update @ts set City =replace(City,'Ğ','G')
+update @ts set City =replace(City,'Ü','U')
+update @ts set City =replace(City,'İ','I')
+update @ts set City =replace(City,'Ş','S')
+update @ts set City =replace(City,'Ö','O')
+update @ts set City =replace(City,'Ç','C')
+update @ts set City =replace(City,' ','')
+
+update @ts set Town =UPPER(Town)
+update @ts set Town =replace(Town,'Ğ','G')
+update @ts set Town =replace(Town,'Ü','U')
+update @ts set Town =replace(Town,'İ','I')
+update @ts set Town =replace(Town,'Ş','S')
+update @ts set Town =replace(Town,'Ö','O')
+update @ts set Town =replace(Town,'Ç','C')
+update @ts set Town =replace(Town,' ','')
+
+
+update @p set Il =UPPER(Il)
+update @p set Il =replace(Il,'Ğ','G')
+update @p set Il =replace(Il,'Ü','U')
+update @p set Il =replace(Il,'İ','I')
+update @p set Il =replace(Il,'Ş','S')
+update @p set Il =replace(Il,'Ö','O')
+update @p set Il =replace(Il,'Ç','C')
+update @p set Il =replace(Il,' ','')
+
+update @p set Ilce =UPPER(Ilce)
+update @p set Ilce =replace(Ilce,'Ğ','G')
+update @p set Ilce =replace(Ilce,'Ü','U')
+update @p set Ilce =replace(Ilce,'İ','I')
+update @p set Ilce =replace(Ilce,'Ş','S')
+update @p set Ilce =replace(Ilce,'Ö','O')
+update @p set Ilce =replace(Ilce,'Ç','C')
+update @p set Ilce =replace(Ilce,' ','')
+
+update @ts set City='ISTANBUL' where City in('ISTANBUL-ANADOLU','ISTANBUL-AVRUPA','ISTANBUL(AND)')
+update @ts set City='AFYONKARAHISAR' where City in('AFYON')
+
+
+update @ts set Postcode=p.Kod from @ts t
+left outer join @p p on p.Il=t.City
+
+update @ts set Postcode=p.Kod from @ts t
+left outer join @p p on p.Il=t.City and p.Ilce=t.Town
+where p.Kod is not null
+
+select * from @ts
+
+update LG_XXX_CLCARD set POSTCODE=t.Postcode from LG_XXX_CLCARD c
+left outer join @ts t on t.LRef=c.LOGICALREF
+where t.Postcode is not null
